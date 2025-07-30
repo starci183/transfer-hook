@@ -3,7 +3,7 @@ use crate::GlobalDispatcherConfigAccount;
 use crate::errors::ErrorCode;
 
 #[derive(Accounts)]
-pub struct RemoveAllowedHookProgram<'info> {
+pub struct RemoveAllowedHookProgramCtx<'info> {
     #[account(mut, has_one = authority)]
     pub global_dispatcher_config_account: Account<'info, GlobalDispatcherConfigAccount>,
 
@@ -11,7 +11,7 @@ pub struct RemoveAllowedHookProgram<'info> {
 }
 
 pub fn handler(
-    ctx: Context<RemoveAllowedHookProgram>,
+    ctx: Context<RemoveAllowedHookProgramCtx>,
     hook_program: Pubkey,
 ) -> Result<()> {
     let global_cfg = &mut ctx.accounts.global_dispatcher_config_account;
@@ -20,12 +20,7 @@ pub fn handler(
     if global_cfg.authority != ctx.accounts.authority.key() {
         return err!(ErrorCode::Unauthorized);
     }
-
-    // check valid pubkey
-    if !hook_program.is_on_curve() {
-        return err!(ErrorCode::InvalidHookProgram);
-    }
-
+    
     // find and remove
     if let Some(pos) = global_cfg
         .allowed_hook_programs

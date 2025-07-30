@@ -19,6 +19,8 @@ pub enum ErrorCode {
     HookNotAllowed = 0x1777, // 0x1777 (6006)
     #[msg("Missing remaining account")]
     MissingRemainingAccount = 0x1778, // 0x1778 (6007)
+    #[msg("Is not currently transferring")]
+    IsNotCurrentlyTransferring = 0x1779, // 0x1779 (6008)
 }
 
 impl From<TryFromIntError> for ErrorCode {

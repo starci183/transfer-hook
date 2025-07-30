@@ -3,19 +3,17 @@ use crate::{DispatcherAccount, GlobalDispatcherConfigAccount};
 use crate::errors::ErrorCode;
 
 #[derive(Accounts)]
-pub struct RegisterHookProgram<'info> {
+pub struct RegisterHookProgramCtx<'info> {
     #[account(mut, has_one = authority)]
     pub dispatcher_account: Account<'info, DispatcherAccount>,
-
     // read-only check against global whitelist
     pub global_dispatcher_config_account: Account<'info, GlobalDispatcherConfigAccount>,
-
     /// authority that owns this dispatcher (not global admin)
     pub authority: Signer<'info>,
 }
 
 pub fn handler(
-    ctx: Context<RegisterHookProgram>,
+    ctx: Context<RegisterHookProgramCtx>,
     hook_program: Pubkey,
 ) -> Result<()> {
     let dispatcher = &mut ctx.accounts.dispatcher_account;

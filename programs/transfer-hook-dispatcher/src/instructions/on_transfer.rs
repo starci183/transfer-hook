@@ -5,10 +5,9 @@ use anchor_spl::{
 };
 use spl_transfer_hook_interface::instruction;
 use crate::DispatcherAccount;
-use crate::errors::ErrorCode;
 
 #[derive(Accounts)]
-pub struct OnTransfer<'info> {
+pub struct OnTransferCtx<'info> {
     #[account(
         token::mint = mint, 
         token::authority = owner,
@@ -40,35 +39,36 @@ pub struct OnTransfer<'info> {
     pub dispatcher_account: Account<'info, DispatcherAccount>,
 }
 
-pub fn handler(
-    ctx: Context<OnTransfer>,
+pub fn handler<'info>(
+    ctx: Context<'_, '_, '_, 'info, OnTransferCtx<'info>>,
     amount: u64,
 ) -> Result<()> {
-    let dispatcher: &Account<'_, DispatcherAccount> = &ctx.accounts.dispatcher_account;
-    let mut all_accounts = vec![
-        ctx.accounts.source_token.to_account_info(),
-        ctx.accounts.mint.to_account_info(),
-        ctx.accounts.destination_token.to_account_info(),
-        ctx.accounts.owner.to_account_info(),
-        ctx.accounts.extra_account_meta_list.to_account_info(),
-        ctx.accounts.dispatcher_account.to_account_info()
-    ];
-    let owned_remaining_accounts = ctx.remaining_accounts
-        .cloned()
-        .collect::<Vec<_>>();
-    all_accounts.extend(owned_remaining_accounts);
-    // Dispatch to all registered hook programs
-    for hook_program in dispatcher.hook_programs.iter() {
-        let ix = instruction::execute(
-            hook_program,                          // hook program id
-            &ctx.accounts.source_token.key(),                 // source amount
-            &ctx.accounts.mint.key(),      // mint
-            &ctx.accounts.destination_token.key(), // destination
-            &ctx.accounts.owner.key(), // owner
-            amount, // amount
+    // Phase 1: clone hook_programs first (early release of borrow)
+    let hooks: Vec<Pubkey> = ctx.accounts.dispatcher_account.hook_programs.clone();
+    // Phase 2: collect all account infos with proper lifetime handling
+    let mut all_accounts = Vec::with_capacity(6 + ctx.remaining_accounts.len());
+    // Add main accounts
+    all_accounts.push(ctx.accounts.dispatcher_account.to_account_info());
+    all_accounts.push(ctx.accounts.source_token.to_account_info());
+    all_accounts.push(ctx.accounts.mint.to_account_info());
+    all_accounts.push(ctx.accounts.destination_token.to_account_info());
+    all_accounts.push(ctx.accounts.owner.to_account_info());
+    all_accounts.push(ctx.accounts.extra_account_meta_list.to_account_info());
+    // Add remaining accounts with explicit lifetime handling
+    all_accounts.extend(
+        ctx.remaining_accounts.iter().map(|acc| acc.to_account_info())
+    );
+    // Phase 3: invoke all hook_programs
+    for hook_program in hooks.iter() {
+        let hook_instruction = instruction::execute(
+            hook_program,
+            &ctx.accounts.source_token.key(),
+            &ctx.accounts.mint.key(),
+            &ctx.accounts.destination_token.key(),
+            &ctx.accounts.owner.key(),
+            amount,
         );
-        // Invoke the hook program with the provided instruction
-        invoke(&ix, &all_accounts)?
-    };
+        invoke(&hook_instruction, &all_accounts)?;
+    }
     Ok(())
 }

@@ -3,7 +3,7 @@ use crate::DispatcherAccount;
 use crate::errors::ErrorCode;
 
 #[derive(Accounts)]
-pub struct UnregisterHookProgram<'info> {
+pub struct UnregisterHookProgramCtx<'info> {
     #[account(mut, has_one = authority)]
     pub dispatcher_account: Account<'info, DispatcherAccount>,
 
@@ -12,7 +12,7 @@ pub struct UnregisterHookProgram<'info> {
 }
 
 pub fn handler(
-    ctx: Context<UnregisterHookProgram>,
+    ctx: Context<UnregisterHookProgramCtx>,
     hook_program: Pubkey,
 ) -> Result<()> {
     let dispatcher = &mut ctx.accounts.dispatcher_account;

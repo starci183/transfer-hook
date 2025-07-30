@@ -3,15 +3,15 @@ use crate::{GlobalDispatcherConfigAccount};
 use crate::errors::ErrorCode;
 
 #[derive(Accounts)]
-pub struct AddAllowedHookProgram<'info> {
+pub struct AddAllowedHookProgramCtx<'info> {
+    pub authority: Signer<'info>, // admin check
     // The global config is where allowed hooks live
     #[account(mut, has_one = authority)]
     pub global_dispatcher_config_account: Account<'info, GlobalDispatcherConfigAccount>,
-    pub authority: Signer<'info>, // admin check
 }
 
 pub fn handler(
-    ctx: Context<AddAllowedHookProgram>,
+    ctx: Context<AddAllowedHookProgramCtx>,
     hook_program: Pubkey,
 ) -> Result<()> {
     let global_cfg = &mut ctx.accounts.global_dispatcher_config_account;
@@ -19,11 +19,6 @@ pub fn handler(
     // redundant check (Anchor's has_one already enforces it), but OK
     if global_cfg.authority != ctx.accounts.authority.key() {
         return err!(ErrorCode::Unauthorized);
-    }
-
-    // must be a valid program address
-    if !hook_program.is_on_curve() {
-        return err!(ErrorCode::InvalidHookProgram);
     }
 
     // enforce max length

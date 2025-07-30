@@ -9,7 +9,6 @@ pub const GLOBAL_DISPATCHER_SEED: &[u8] = b"global-dispatcher-config";
 pub struct InitializeGlobalDispatcherConfigCtx<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
-
     #[account(
         init,
         seeds = [GLOBAL_DISPATCHER_SEED],
@@ -20,7 +19,6 @@ pub struct InitializeGlobalDispatcherConfigCtx<'info> {
             + 32 // authority pubkey
     )]
     pub global_dispatcher_config: Account<'info, GlobalDispatcherConfigAccount>,
-
     pub system_program: Program<'info, System>,
 }
 

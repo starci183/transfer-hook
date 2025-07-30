@@ -13,7 +13,7 @@ use spl_transfer_hook_interface::instruction::{ExecuteInstruction};
 use crate::states::DispatcherAccount;
 
 #[derive(Accounts)]
-pub struct InitializeExtraAccountMetaList<'info> {
+pub struct InitializeExtraAccountMetaListCtx<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
@@ -27,10 +27,10 @@ pub struct InitializeExtraAccountMetaList<'info> {
     pub mint: InterfaceAccount<'info, Mint>,
     #[account(
         init,
-        seeds = [b"dispatcher"], 
+        seeds = [b"dispatcher", mint.key().as_ref()], 
         bump,
         payer = payer,
-        space =  8 + (4 + 32*20) + (4 + 32*20) + 32 // 20 hook programs + 20 allowed hook programs + 32 authority
+        space =  8 + (4 + 32 * 20) + 32 // 20 hook programs + 32 authority
     )]
     pub dispatcher_account: Account<'info, DispatcherAccount>,
     pub token_program: Interface<'info, TokenInterface>,
@@ -40,13 +40,17 @@ pub struct InitializeExtraAccountMetaList<'info> {
 
  
 pub fn handler(
-    ctx: Context<InitializeExtraAccountMetaList>,
+    ctx: Context<InitializeExtraAccountMetaListCtx>,
 ) -> Result<()> {
+    let mint = ctx.accounts.mint.key();
     // The `addExtraAccountsToInstruction` JS helper function resolving incorrectly
     let account_metas = vec![ExtraAccountMeta::new_with_seeds(
-        &[Seed::Literal {
-            bytes: "counter".as_bytes().to_vec(),
-        }],
+        &[
+            Seed::Literal {
+                bytes: "dispatcher".as_bytes().to_vec(),
+            },
+            Seed::AccountKey { index: 0 }
+        ],
         false, // is_signer
         true,  // is_writable
     )?];
@@ -56,11 +60,10 @@ pub fn handler(
     // calculate minimum required lamports
     let lamports = Rent::get()?.minimum_balance(account_size as usize);
 
-    let mint = ctx.accounts.mint.key();
     let signer_seeds: &[&[&[u8]]] = &[&[
         b"extra-account-metas",
         &mint.as_ref(),
-        &[ctx.bumps.extra_account_meta_list],
+        &[ctx.bumps.extra_account_meta_list]
     ]];
 
     // create ExtraAccountMetaList account
