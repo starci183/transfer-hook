@@ -8,10 +8,11 @@ import {
     getMintLen,
     getOrCreateAssociatedTokenAccount,
     mintTo,
-    Account
+    Account,
+    createTransferCheckedWithTransferHookInstruction
 } from "@solana/spl-token";
 import { TransferHookDispatcher } from "../target/types/transfer_hook_dispatcher";
-import { Keypair } from "@solana/web3.js";
+import { Keypair, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
 import { assert } from "chai";
 import { TransferHook } from "../target/types/transfer_hook";
 
@@ -64,6 +65,16 @@ describe("transfer-hook-dispatcher", () => {
             [mint]
         );
 
+        // init transfer hook program
+        hookDispatcherProgram.methods
+            .initialize()
+            .accounts({
+                payer: payer.payer.publicKey,
+            })
+            .signers([payer.payer])
+            .rpc();
+        console.log(`Hook Dispatcher Program ID: ${hookDispatcherProgram.programId.toBase58()}`);
+
         // create source ATA
         sourceAta = await getOrCreateAssociatedTokenAccount(
             provider.connection,
@@ -94,14 +105,14 @@ describe("transfer-hook-dispatcher", () => {
         // console.log(payer.publicKey.toBase58());
         // console.log(payer.payer.publicKey.toBase58());
         await program.methods
-          .initializeGlobalDispatcherConfig(
-            admin.publicKey
-          )
-          .accounts({
-            payer: payer.publicKey,
-          })
-          .signers([payer.payer])
-          .rpc();
+            .initializeGlobalDispatcherConfig(
+                admin.publicKey
+            )
+            .accounts({
+                payer: payer.publicKey,
+            })
+            .signers([payer.payer])
+            .rpc();
 
         const [globalDispatcherConfigPDA] = anchor.web3.PublicKey.findProgramAddressSync(
             [Buffer.from("global-dispatcher-config")],
@@ -183,5 +194,58 @@ describe("transfer-hook-dispatcher", () => {
             dispatcherAccount.hookPrograms[0].toBase58(),
             hookDispatcherProgram.programId.toBase58()
         );
+    });
+
+    it("should call registed hook program when we do transfer checked", async () => {
+        const destinationAta = await getOrCreateAssociatedTokenAccount(
+            provider.connection,
+            payer.payer,
+            mint.publicKey,
+            to.publicKey,
+            false,
+            undefined,
+            undefined,
+            TOKEN_2022_PROGRAM_ID
+        );
+        const transferCheckedInstruction = await createTransferCheckedWithTransferHookInstruction(
+            provider.connection,
+            sourceAta.address,
+            mint.publicKey,
+            destinationAta.address,
+            from.publicKey,
+            BigInt(100_000_002), // 1 token with 8 decimals
+            8,
+            [],
+            undefined,
+            TOKEN_2022_PROGRAM_ID,
+        )
+
+        // push the hook dispatcher program ID to the instruction
+        transferCheckedInstruction.keys.push({
+            pubkey: hookDispatcherProgram.programId,
+            isSigner: false,
+            isWritable: false,
+        });
+
+        const transferCheckedTx = new Transaction().add(transferCheckedInstruction);
+        const transferCheckedTxSig = await sendAndConfirmTransaction(
+            provider.connection,
+            transferCheckedTx,
+            [payer.payer, from],
+            { commitment: "confirmed" }
+        );
+        console.log("Transfer transaction signature:", transferCheckedTxSig);
+        const transferCheckedReceipt = await provider.connection.getTransaction(transferCheckedTxSig, {
+            commitment: "confirmed",
+        });
+        console.log(`Transfer checked transaction signature: ${transferCheckedTxSig}`);
+        console.log(transferCheckedReceipt.meta.logMessages);
+
+        // const [counterPDA] = anchor.web3.PublicKey.findProgramAddressSync(
+        //     [Buffer.from("counter")],
+        //     hookDispatcherProgram.programId
+        // );
+        // const counterAccount = await hookDispatcherProgram.account.counterAccount.fetch(counterPDA);
+        // assert.equal(counterAccount.counter, 1, "Counter should be incremented by 1");
     });
 });

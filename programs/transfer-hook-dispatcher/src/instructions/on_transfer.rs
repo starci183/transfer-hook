@@ -1,11 +1,14 @@
-use anchor_lang::prelude::*;
-use anchor_lang::solana_program::program::invoke;
+use anchor_lang::{
+    prelude::*, 
+    solana_program::{
+        program::{invoke},
+        instruction::{Instruction},
+    },
+};
 use anchor_spl::{
     token_interface::{Mint, TokenAccount},
 };
-use spl_transfer_hook_interface::instruction;
 use crate::DispatcherAccount;
-
 #[derive(Accounts)]
 pub struct OnTransferCtx<'info> {
     #[account(
@@ -32,43 +35,108 @@ pub struct OnTransferCtx<'info> {
     pub extra_account_meta_list: UncheckedAccount<'info>,
 
     #[account(
-        mut,
-        seeds = [b"dispatcher"],
+        seeds = [b"dispatcher", mint.key().as_ref()],
         bump
     )]
     pub dispatcher_account: Account<'info, DispatcherAccount>,
 }
 
+
+#[derive(Accounts)]
+pub struct ProcessTransfer<'info> {
+    #[account(
+        token::mint = mint,
+        token::authority = owner,
+    )]
+    pub source_token: InterfaceAccount<'info, TokenAccount>,
+
+    pub mint: InterfaceAccount<'info, Mint>,
+
+    #[account(
+        token::mint = mint,
+    )]
+    pub destination_token: InterfaceAccount<'info, TokenAccount>,
+
+    /// CHECK: chủ của source token account
+    pub owner: UncheckedAccount<'info>,
+}
+
 pub fn handler<'info>(
-    ctx: Context<'_, '_, '_, 'info, OnTransferCtx<'info>>,
+    ctx: Context<OnTransferCtx>,
     amount: u64,
 ) -> Result<()> {
     // Phase 1: clone hook_programs first (early release of borrow)
     let hooks: Vec<Pubkey> = ctx.accounts.dispatcher_account.hook_programs.clone();
     // Phase 2: collect all account infos with proper lifetime handling
-    let mut all_accounts = Vec::with_capacity(6 + ctx.remaining_accounts.len());
-    // Add main accounts
-    all_accounts.push(ctx.accounts.dispatcher_account.to_account_info());
-    all_accounts.push(ctx.accounts.source_token.to_account_info());
-    all_accounts.push(ctx.accounts.mint.to_account_info());
-    all_accounts.push(ctx.accounts.destination_token.to_account_info());
-    all_accounts.push(ctx.accounts.owner.to_account_info());
-    all_accounts.push(ctx.accounts.extra_account_meta_list.to_account_info());
-    // Add remaining accounts with explicit lifetime handling
-    all_accounts.extend(
-        ctx.remaining_accounts.iter().map(|acc| acc.to_account_info())
-    );
-    // Phase 3: invoke all hook_programs
+    let accounts = vec![
+        ctx.accounts.source_token.to_account_info(),
+        ctx.accounts.mint.to_account_info(),
+        ctx.accounts.destination_token.to_account_info(),
+        ctx.accounts.owner.to_account_info(),
+    ];
+    msg!("on_transfer: amount = {}, hooks = {:?}", amount, hooks);
+    //Phase 3: invoke all hook_programs
     for hook_program in hooks.iter() {
-        let hook_instruction = instruction::execute(
-            hook_program,
-            &ctx.accounts.source_token.key(),
-            &ctx.accounts.mint.key(),
-            &ctx.accounts.destination_token.key(),
-            &ctx.accounts.owner.key(),
-            amount,
-        );
-        invoke(&hook_instruction, &all_accounts)?;
+        msg!("Invoking hook program: {}", hook_program);
+        // Call the hook program with the collected accounts and amount
+        call_hook(*hook_program)?;
     }
     Ok(())
+}
+
+// process_transfer function to handle the transfer logic
+#[derive(AnchorSerialize, AnchorDeserialize)]
+pub enum HookInstruction {
+    Execute { amount: u64 },
+    HelloWorld,
+}
+
+// pub fn call_hook<'info>(
+//     hook_program: Pubkey,
+//     accounts: &[AccountInfo<'info>],
+//     amount: u64,
+// ) -> Result<()> {
+//     // let data = HookInstruction::HelloWorld { } 
+//     //     .try_to_vec()
+//     //     .map_err(|_| ProgramError::InvalidInstructionData)?;
+
+//     // let instruction = Instruction {
+//     //     program_id: hook_program,
+//     //     accounts: vec![
+//     //         // AccountMeta::new_readonly(*accounts[0].key, false), // source
+//     //         // AccountMeta::new_readonly(*accounts[1].key, false), // mint
+//     //         // AccountMeta::new_readonly(*accounts[2].key, false), // destination
+//     //         // AccountMeta::new_readonly(*accounts[3].key, false), // owner
+//     //     ],
+//     //     data,
+//     // };
+//     // invoke(&instruction, accounts)
+//     Ok(())
+// }
+
+pub fn call_hook<'info>(
+    hook_program: Pubkey,
+) -> Result<()> {
+    // serialize the amount into bytes
+    let data = get_function_hash("global", "hello_world").to_vec();
+    // Not needed to pass accounts here, as we are not using them in the hook
+    let instruction = Instruction {
+        program_id: hook_program,
+        accounts: vec![],
+        data,
+    };
+    // Invoke to the hook program
+    invoke(&instruction, &[])?; 
+
+    Ok(())
+}
+
+pub fn get_function_hash(namespace: &str, name: &str) -> [u8; 8] {
+    let preimage = format!("{}:{}", namespace, name);
+    let mut sighash = [0u8; 8];
+    sighash.copy_from_slice(
+        &anchor_lang::solana_program::hash::hash(preimage.as_bytes()).to_bytes()
+            [..8],
+    );
+    sighash
 }

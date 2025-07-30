@@ -7,7 +7,7 @@ use anchor_spl::{
     token_interface::{Mint, TokenInterface},
 };
 use spl_tlv_account_resolution::{
-    account::ExtraAccountMeta, seeds::Seed, state::ExtraAccountMetaList,
+    account::ExtraAccountMeta, state::ExtraAccountMetaList,
 };
 use spl_transfer_hook_interface::instruction::{ExecuteInstruction};
 use crate::states::DispatcherAccount;
@@ -44,15 +44,10 @@ pub fn handler(
 ) -> Result<()> {
     let mint = ctx.accounts.mint.key();
     // The `addExtraAccountsToInstruction` JS helper function resolving incorrectly
-    let account_metas = vec![ExtraAccountMeta::new_with_seeds(
-        &[
-            Seed::Literal {
-                bytes: "dispatcher".as_bytes().to_vec(),
-            },
-            Seed::AccountKey { index: 0 }
-        ],
+    let account_metas = vec![ExtraAccountMeta::new_with_pubkey(
+        &ctx.accounts.dispatcher_account.key(),
         false, // is_signer
-        true,  // is_writable
+        false,  // is_not_writable
     )?];
 
     // calculate account size
