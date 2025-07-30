@@ -83,7 +83,7 @@ pub fn handler(
 
     // set up the dispatcher account
     let dispatcher_account = &mut ctx.accounts.dispatcher_account;
-    dispatcher_account.hook_programs = Vec::new();
+    dispatcher_account.hook_entries = Vec::new();
     dispatcher_account.authority = ctx.accounts.payer.key();
 
     Ok(())

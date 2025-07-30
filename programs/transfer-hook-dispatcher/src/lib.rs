@@ -85,6 +85,7 @@ pub mod transfer_hook_dispatcher {
         let instruction = TransferHookInstruction::unpack(data)?;
         // match instruction discriminator to transfer hook interface execute instruction
         // token2022 program CPIs this instruction on token transfer
+        msg!("Account length: {}", accounts.len());
         match instruction {
             TransferHookInstruction::Execute { amount } => {
                 let amount_bytes = amount.to_le_bytes();

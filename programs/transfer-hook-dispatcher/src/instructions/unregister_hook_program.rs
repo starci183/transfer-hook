@@ -23,11 +23,11 @@ pub fn handler(
     }
 
     // find and remove from active list
-    if let Some(pos) = dispatcher.hook_programs.iter().position(|x| *x == hook_program) {
-        dispatcher.hook_programs.remove(pos);
+    if let Some(pos) = dispatcher.hook_entries.iter().position(|hook_entry| hook_entry.program_id == hook_program) {
+        dispatcher.hook_entries.remove(pos);
         Ok(())
     } else {
         // not found
         err!(ErrorCode::HookNotFound)
     }
-}
+}   

@@ -7,11 +7,24 @@ use anchor_lang::prelude::*;
 pub struct DispatcherAccount {
     /// List of registered (active) hook programs for this dispatcher.
     /// Each Pubkey represents a hook program.
-    pub hook_programs: Vec<Pubkey>,
+    pub hook_entries: Vec<HookEntry>,
 
     /// The authority that can manage (add/remove) hook_programs.
     /// Usually set to the payer at initialization.
     pub authority: Pubkey,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct HookEntry {
+    pub program_id: Pubkey,
+    pub additional_accounts: Vec<AccountInfoLike>,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct AccountInfoLike {
+    pub key: Pubkey,
+    pub is_signer: bool,
+    pub is_writable: bool,
 }
 
 /// Global configuration account shared across the entire program.

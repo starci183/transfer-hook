@@ -213,7 +213,7 @@ describe("transfer-hook-dispatcher", () => {
             mint.publicKey,
             destinationAta.address,
             from.publicKey,
-            BigInt(100_000_002), // 1 token with 8 decimals
+            BigInt(100_000_000), // 1 token with 8 decimals
             8,
             [],
             undefined,
@@ -221,12 +221,19 @@ describe("transfer-hook-dispatcher", () => {
         )
 
         // push the hook dispatcher program ID to the instruction
+        const [counterPDA] = anchor.web3.PublicKey.findProgramAddressSync(
+            [Buffer.from("counter")],
+            hookDispatcherProgram.programId
+        );
         transferCheckedInstruction.keys.push({
             pubkey: hookDispatcherProgram.programId,
             isSigner: false,
             isWritable: false,
+        }, {
+            pubkey: counterPDA,
+            isSigner: false,
+            isWritable: true,
         });
-
         const transferCheckedTx = new Transaction().add(transferCheckedInstruction);
         const transferCheckedTxSig = await sendAndConfirmTransaction(
             provider.connection,
